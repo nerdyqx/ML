@@ -1,0 +1,106 @@
+import numpy as np
+import scipy
+import pandas as pd
+from xgboost import XGBClassifier, plot_tree
+from sklearn.tree import DecisionTreeClassifier
+
+from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV
+from sklearn.metrics import roc_curve, auc, roc_auc_score
+from sklearn.model_selection import train_test_split
+import seaborn as sns
+
+import matplotlib.pyplot as plt
+df = pd.read_csv('C:\\Users\\86153\\Downloads\\True dataset.csv', encoding='gbk')
+df.head()
+#读取数据
+y=df.Causality
+x=df.drop('Causality', axis=1)
+seed=5
+x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.3, random_state=6)
+
+## 定义 XGBoost模型 
+clf = XGBClassifier()
+# 在训练集上训练XGBoost模型
+clf.fit(x_train, y_train)
+## 在训练集和测试集上分布利用训练好的模型进行预测
+train_predict = clf.predict(x_train)
+test_predict = clf.predict(x_test)
+from sklearn import metrics
+ 
+## 利用accuracy（准确度）【预测正确的样本数目占总预测样本数目的比例】评估模型效果
+print('训练集准确度:',metrics.accuracy_score(y_train,train_predict))
+print('测试集准确度:',metrics.accuracy_score(y_test,test_predict))
+ 
+## 查看混淆矩阵 (预测值和真实值的各类情况统计矩阵)
+confusion_matrix_result = metrics.confusion_matrix(test_predict,y_test)
+print('The confusion matrix result:\n',confusion_matrix_result)
+ 
+# 利用热力图对于结果进行可视化
+plt.figure(figsize=(7, 5))
+sns.heatmap(confusion_matrix_result, annot=True, cmap='Blues')
+plt.xlabel('Predicted labels')
+plt.ylabel('True labels')
+plt.show()
+from xgboost import plot_importance
+#%%利用XGBoost进行特征选择：
+#XGboost中可以用属性feature_importances_去查看特征的重要度。
+df_target_part = df['Causality']
+df_features_part = df[[x for x in df.columns if x != 'Causality']]
+sns.barplot(y=df_features_part.columns,x=clf.feature_importances_)
+import xgboost as xgb
+from sklearn.model_selection import GridSearchCV
+
+# 定义要优化的超参数范围
+param_grid = {
+    'max_depth': [3, 5, 7],
+    'learning_rate': [0.1, 0.01, 0.001],
+    'subsample': [0.5, 0.7, 1],
+    'colsample_bytree': [0.5, 0.7, 1],
+    'gamma': [0, 0.1, 0.2, 0.3, 0.4],
+    'reg_alpha': [0, 0.001, 0.005, 0.01, 0.05],
+    'reg_lambda': [0, 0.001, 0.005, 0.01, 0.05]
+}
+
+# 创建XGBoost分类器模型
+xgb_model = xgb.XGBClassifier()
+
+# 使用GridSearchCV进行参数优化
+grid_search = GridSearchCV(xgb_model, param_grid, cv=5, scoring='accuracy')
+grid_search.fit(x_train, y_train)  # 假设X_train和y_train是您的训练数据
+
+# 输出最佳参数
+print("Best set of hyperparameters: ", grid_search.best_params_)
+print("Best score: ", grid_search.best_score_)
+## 在训练集和测试集上分布利用最好的模型参数进行预测
+ 
+## 定义带参数的 XGBoost模型 
+best_clf = XGBClassifier(colsample_bytree = 0.5,gamma = 0.3, learning_rate = 0.1, max_depth= 5,  reg_alpha = 0.01,reg_lambda = 0.005, subsample = 1)
+# 在训练集上训练XGBoost模型
+best_clf.fit(x_train, y_train)
+ 
+train_predict = best_clf.predict(x_train)
+test_predict = best_clf.predict(x_test)
+ 
+## 利用accuracy（准确度）【预测正确的样本数目占总预测样本数目的比例】评估模型效果
+print('The accuracy of the Logistic Regression is:',metrics.accuracy_score(y_train,train_predict))
+print('The accuracy of the Logistic Regression is:',metrics.accuracy_score(y_test,test_predict))
+ from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+result1 = classification_report(y_test, test_predict)
+print("Classification Report:", )#precision表示准确率，recall表示召回率，f1-score表示precision和recall的调和平均值。
+print(result1)
+result2 = accuracy_score(y_test, test_predict)#Accuracy为随机森林分类的准确性
+print("Accuracy:", result2)
+import joblib
+# 保存模型
+joblib.dump(best_clf, "C:\\Users\\86153\\Downloads\\truexgb.pkl") # best_clf是训练好的模型， "./ML/test.pkl"是模型要保存的路径及保存模型的文件名，其中，'pkl' 是sklearn中默认的保存格式gai
+
+df = pd.read_csv('C:\\Users\\86153\\Downloads\\pred.csv', encoding='gbk')
+y=df.Causality
+x=df.drop('Causality', axis=1)
+df.head()
+lr = joblib.load("C:\\Users\\86153\\Downloads\\truexgb.pkl")
+# 进行模型的预测
+
+y_pred = lr.predict(x) # 加载出来的模型跟我们训练出来的模型一样，有相同的参数
+print (y_pred)
+print(y)
