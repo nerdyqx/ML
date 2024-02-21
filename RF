@@ -1,0 +1,158 @@
+import numpy as np
+import scipy
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV
+from sklearn.metrics import roc_curve, auc, roc_auc_score
+import matplotlib.pyplot as plt
+
+df = pd.read_csv('C:\\Users\\86153\\Downloads\\True dataset.csv', encoding='gbk')
+df.head()
+df.Causality.value_counts()
+y=df.Causality
+x=df.drop('Causality', axis=1)
+from imblearn.over_sampling import SMOTE # 过抽样处理库SMOTE
+# 使用SMOTE方法进行过抽样处理
+model_smote = SMOTE(sampling_strategy={2:300,0:300,1:300,3:300,5:300}) # 建立SMOTE模型对象
+x_smo, y_smo = model_smote.fit_resample(x,y) # 输入数据并作过抽样处理
+y_smo = pd.DataFrame(y_smo,columns=['Causality']) # 将数据转换为数据框并命名列名
+smote_resampled = pd.concat([x_smo, y_smo],axis=1) # 按列合并数据框
+groupby_data_smote = smote_resampled.groupby('Causality').count() # 对label做分类汇总
+print (groupby_data_smote) # 打印输出经过SMOTE处理后的数据集样本分类分布
+seed=5
+xtrain, xtest, ytrain, ytest = train_test_split(x_smo, y_smo, test_size=0.1, random_state=seed)
+rfc = RandomForestClassifier()     #实例化 
+rfc = rfc.fit(xtrain,ytrain)       #用训练集数据训练模型 
+
+result = rfc.score(xtest,ytest)    #导入测试集，rfc的接口score计算的是模型准确率accuracy
+result
+
+print ('判定结果：%s' % rfc.predict_proba(xtest)[:,:])   #标签的可能性
+
+y_pred = rfc.predict(xtest)
+
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+import seaborn as sns
+result = confusion_matrix(ytest, y_pred)
+print("Confusion Matrix:") #混淆矩阵
+print(result)
+result1 = classification_report(ytest, y_pred)
+print("Classification Report:", )#precision表示准确率，recall表示召回率，f1-score表示precision和recall的调和平均值。
+print(result1)
+result2 = accuracy_score(ytest, y_pred)#Accuracy为随机森林分类的准确性
+print("Accuracy:", result2)
+
+from sklearn import metrics
+confusion_matrix = metrics.confusion_matrix(ytest, y_pred)## 查看混淆矩阵 (预测值和真实值的各类情况统计矩阵)
+df_matrix = pd.DataFrame(confusion_matrix, index=['0', '1', '2', '3', '4', '5'], columns=['0', '1', '2', '3', '4', '5'])
+print(df_matrix)
+
+y_train_proba = rfc.predict_proba(xtrain)
+y_test_proba = rfc.predict_proba(xtest)
+
+auc_train = metrics.roc_auc_score(ytrain, y_train_proba, multi_class ='ovr')
+auc_test = metrics.roc_auc_score(ytest, y_test_proba, multi_class ='ovr')
+
+print('训练集的AUC: ', auc_train)
+print('测试集的AUC: ', auc_test)
+
+# 利用热力图对于结果进行可视化
+plt.figure(figsize=(7, 5))
+sns.heatmap(confusion_matrix, annot=True, cmap='Blues')
+plt.xlabel('Predicted labels')
+plt.ylabel('True labels')
+plt.show()
+from sklearn.metrics import precision_score,recall_score,f1_score
+
+param_test1 = {'n_estimators': range(10,300,10)}
+gsearch1 = GridSearchCV(estimator = RandomForestClassifier(min_samples_split=5, 
+                                                           min_samples_leaf=2,
+                                                           max_depth=10, random_state=10), 
+                        param_grid = param_test1, 
+                        scoring= 'accuracy',
+                        cv=10)
+gsearch1.fit(xtrain, ytrain)
+print(gsearch1.best_params_, gsearch1.best_score_)
+param_test2 = {'min_samples_split':range(5, 50, 5), 'min_samples_leaf':range(2, 40, 2)}
+gsearch2 = GridSearchCV(estimator = RandomForestClassifier(n_estimators=90,
+                                                           max_depth=10, random_state=10), 
+                        param_grid = param_test2, 
+                        scoring='accuracy',
+                        cv=10)
+gsearch2.fit(xtrain,ytrain)
+print(gsearch2.best_params_, gsearch2.best_score_)
+param_test3 = {'max_depth':range(1, 30, 2)}
+gsearch3 = GridSearchCV(estimator = RandomForestClassifier(n_estimators=90,
+                                                           min_samples_split=5, 
+                                                           min_samples_leaf=2,
+                                                           random_state=10), 
+                        param_grid = param_test3, 
+                        scoring='accuracy',
+                        cv=10)
+gsearch3.fit(xtrain,ytrain)
+print(gsearch3.best_params_, gsearch3.best_score_)
+param_test4 = {'criterion':['gini', 'entropy'], 'class_weight':[None, 'balanced']}
+gsearch4 = GridSearchCV(estimator = RandomForestClassifier(n_estimators=90,
+                                                           max_depth=19, 
+                                                           min_samples_split=5, 
+                                                           min_samples_leaf=2,
+                                                           random_state=10), 
+                        param_grid = param_test4, 
+                        scoring='accuracy',
+                        cv=10)
+gsearch4.fit(xtrain,ytrain)
+print(gsearch4.best_params_, gsearch4.best_score_)
+from sklearn import metrics
+best_modelrfc = RandomForestClassifier(n_estimators=90,
+                                      min_samples_split=5, 
+                                      min_samples_leaf=2,
+                                      max_depth=19,
+                                      random_state=10,oob_score=True,class_weight=None,criterion='gini')
+best_modelrfc.fit(xtrain, ytrain)
+y_train_pred = best_modelrfc.predict(xtrain)
+y_test_pred = best_modelrfc.predict(xtest)
+
+
+accuracy_train = metrics.accuracy_score(ytrain, y_train_pred)
+accuracy_test = metrics.accuracy_score(ytest, y_test_pred)
+
+print('训练集的accuracy: ', accuracy_train)
+print('测试集的accuracy: ', accuracy_test)
+
+auc_train = metrics.roc_auc_score(ytrain, y_train_proba, multi_class ='ovr')
+auc_test = metrics.roc_auc_score(ytest, y_test_proba, multi_class ='ovr')
+
+print('训练集的AUC: ', auc_train)
+print('测试集的AUC: ', auc_test)
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+pipe = Pipeline([('scaler', StandardScaler()), ('reduce_dim', PCA()),
+                 ('regressor', best_modelrfc)])
+pipe.fit(xtrain, ytrain)
+ypipe = pipe.predict(xtest)
+
+from six import StringIO
+from IPython.display import Image
+from sklearn.tree import export_graphviz
+import pydotplus
+import os
+
+# 执行一次
+# os.environ['PATH'] = os.environ['PATH']+';'+r"D:\CLibrary\Graphviz2.44.1\bin\graphviz"
+dot_data = StringIO()
+export_graphviz(pipe.named_steps['regressor'].estimators_[0],
+                out_file=dot_data)
+graph = pydotplus.graph_from_dot_data(dot_data.getvalue())
+graph.write_png('tree.png')
+Image(graph.create_png())
+ import joblib
+# 保存模型
+joblib.dump(best_modelrfc, 'model.pkl')
+
+import seaborn as sns
+df_target_part = df['Causality']
+df_features_part = df[[x for x in df.columns if x != 'Causality']]
+sns.barplot(y=df_features_part.columns,x=rfc.feature_importances_)
+                    
